@@ -1,0 +1,21 @@
+{
+  "version": "0",
+  "id": "test-event-id",
+  "detail-type": "PushNotification",
+  "source": "communications.service",
+  "account": "123456789012",
+  "time": "2024-01-01T00:00:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "messageId": "push-1234567890-abc123",
+    "deviceToken": "device-token-123",
+    "title": "Notificación",
+    "body": "Este es un push de prueba",
+    "data": {
+      "key": "value"
+    },
+    "timestamp": "2024-01-01T00:00:00Z"
+  }
+}
+

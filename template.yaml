@@ -1,0 +1,246 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Sistema de microservicios de comunicaciones con EventBridge
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Runtime: nodejs18.x
+    Environment:
+      Variables:
+        EVENT_BUS_NAME: !Ref CommunicationsEventBus
+        REGION: !Ref AWS::Region
+
+Resources:
+  # Dead Letter Queue para eventos fallidos
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: communications-dlq
+      MessageRetentionPeriod: 1209600  # 14 días
+      VisibilityTimeout: 300
+
+  # EventBridge Custom Bus
+  CommunicationsEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: communications-event-bus
+
+  # EventBridge Rule para emails
+  EmailEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventBusName: !Ref CommunicationsEventBus
+      EventPattern:
+        source:
+          - communications.service
+        detail-type:
+          - EmailNotification
+      Targets:
+        - Arn: !GetAtt EmailProcessorFunction.Arn
+          Id: EmailProcessorTarget
+          RetryPolicy:
+            MaximumRetryAttempts: 3
+            MaximumEventAgeInSeconds: 3600
+
+  # EventBridge Rule para SMS
+  SMSEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventBusName: !Ref CommunicationsEventBus
+      EventPattern:
+        source:
+          - communications.service
+        detail-type:
+          - SMSNotification
+      Targets:
+        - Arn: !GetAtt SMSProcessorFunction.Arn
+          Id: SMSProcessorTarget
+          RetryPolicy:
+            MaximumRetryAttempts: 3
+            MaximumEventAgeInSeconds: 3600
+
+  # EventBridge Rule para push notifications
+  PushEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventBusName: !Ref CommunicationsEventBus
+      EventPattern:
+        source:
+          - communications.service
+        detail-type:
+          - PushNotification
+      Targets:
+        - Arn: !GetAtt PushProcessorFunction.Arn
+          Id: PushProcessorTarget
+          RetryPolicy:
+            MaximumRetryAttempts: 3
+            MaximumEventAgeInSeconds: 3600
+
+  # Lambda: Procesador de Emails
+  EmailProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: communications-email-processor
+      CodeUri: lambdas/email-processor/
+      Handler: index.handler
+      MemorySize: 2048
+      Timeout: 60
+      ReservedConcurrentExecutions: 50
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt DeadLetterQueue.Arn
+      Environment:
+        Variables:
+          EVENT_BUS_NAME: !Ref CommunicationsEventBus
+          LOG_LEVEL: INFO
+      Policies:
+        - Statement:
+            - Sid: AllowSQSSendMessage
+              Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt DeadLetterQueue.Arn
+
+  # Permiso para EventBridge invocar EmailProcessor
+  EmailProcessorInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref EmailProcessorFunction
+      Principal: events.amazonaws.com
+      Action: lambda:InvokeFunction
+      SourceArn: !GetAtt EmailEventRule.Arn
+
+  # Lambda: Procesador de SMS
+  SMSProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: communications-sms-processor
+      CodeUri: lambdas/sms-processor/
+      Handler: index.handler
+      MemorySize: 2048
+      Timeout: 60
+      ReservedConcurrentExecutions: 50
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt DeadLetterQueue.Arn
+      Environment:
+        Variables:
+          EVENT_BUS_NAME: !Ref CommunicationsEventBus
+          LOG_LEVEL: INFO
+      Policies:
+        - Statement:
+            - Sid: AllowSQSSendMessage
+              Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt DeadLetterQueue.Arn
+
+  # Permiso para EventBridge invocar SMSProcessor
+  SMSProcessorInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SMSProcessorFunction
+      Principal: events.amazonaws.com
+      Action: lambda:InvokeFunction
+      SourceArn: !GetAtt SMSEventRule.Arn
+
+  # Lambda: Procesador de Push Notifications
+  PushProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: communications-push-processor
+      CodeUri: lambdas/push-processor/
+      Handler: index.handler
+      MemorySize: 2048
+      Timeout: 60
+      ReservedConcurrentExecutions: 50
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt DeadLetterQueue.Arn
+      Environment:
+        Variables:
+          EVENT_BUS_NAME: !Ref CommunicationsEventBus
+          LOG_LEVEL: INFO
+      Policies:
+        - Statement:
+            - Sid: AllowSQSSendMessage
+              Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt DeadLetterQueue.Arn
+
+  # Permiso para EventBridge invocar PushProcessor
+  PushProcessorInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PushProcessorFunction
+      Principal: events.amazonaws.com
+      Action: lambda:InvokeFunction
+      SourceArn: !GetAtt PushEventRule.Arn
+
+  # IAM Role para el microservicio
+  MicroserviceEventBridgeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: communications-microservice-eventbridge-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: EventBridgePutEvents
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                Resource: !GetAtt CommunicationsEventBus.Arn
+
+  # IAM Policy para Lambdas
+  LambdaEventBridgePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: communications-lambda-eventbridge-policy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - events:PutEvents
+            Resource: !GetAtt CommunicationsEventBus.Arn
+
+Outputs:
+  EventBusName:
+    Description: Nombre del EventBridge Bus
+    Value: !Ref CommunicationsEventBus
+    Export:
+      Name: CommunicationsEventBusName
+
+  EventBusArn:
+    Description: ARN del EventBridge Bus
+    Value: !GetAtt CommunicationsEventBus.Arn
+    Export:
+      Name: CommunicationsEventBusArn
+
+  EmailProcessorFunctionArn:
+    Description: ARN de la función Lambda de procesamiento de emails
+    Value: !GetAtt EmailProcessorFunction.Arn
+
+  SMSProcessorFunctionArn:
+    Description: ARN de la función Lambda de procesamiento de SMS
+    Value: !GetAtt SMSProcessorFunction.Arn
+
+  PushProcessorFunctionArn:
+    Description: ARN de la función Lambda de procesamiento de Push
+    Value: !GetAtt PushProcessorFunction.Arn
+
+  MicroserviceRoleArn:
+    Description: ARN del rol IAM para el microservicio
+    Value: !GetAtt MicroserviceEventBridgeRole.Arn
+

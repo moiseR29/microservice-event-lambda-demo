@@ -1,0 +1,17 @@
+{
+  "version": "0",
+  "id": "test-event-id",
+  "detail-type": "SMSNotification",
+  "source": "communications.service",
+  "account": "123456789012",
+  "time": "2024-01-01T00:00:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "messageId": "sms-1234567890-abc123",
+    "to": "+1234567890",
+    "message": "Este es un SMS de prueba",
+    "timestamp": "2024-01-01T00:00:00Z"
+  }
+}
+

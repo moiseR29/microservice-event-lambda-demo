@@ -1,0 +1,19 @@
+{
+  "version": "0",
+  "id": "test-event-id",
+  "detail-type": "EmailNotification",
+  "source": "communications.service",
+  "account": "123456789012",
+  "time": "2024-01-01T00:00:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "messageId": "email-1234567890-abc123",
+    "to": "test@example.com",
+    "subject": "Test Email",
+    "body": "Este es un email de prueba",
+    "from": "noreply@example.com",
+    "timestamp": "2024-01-01T00:00:00Z"
+  }
+}
+

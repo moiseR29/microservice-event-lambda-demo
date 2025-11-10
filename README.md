@@ -240,15 +240,6 @@ microservices-events-demo-2/
 - EventBridge Metrics: Métricas de eventos procesados
 - Lambda Metrics: Invocaciones, errores, duración
 
-## 🚧 Próximos Pasos
-
-- [ ] Integración con servicios reales (SES, SNS, FCM)
-- [ ] Dead Letter Queue (DLQ) para eventos fallidos
-- [ ] Métricas y alertas con CloudWatch
-- [ ] Tests unitarios y de integración
-- [ ] CI/CD pipeline
-- [ ] Documentación de API con Swagger/OpenAPI
-
 ## 📝 Licencia
 
 ISC
